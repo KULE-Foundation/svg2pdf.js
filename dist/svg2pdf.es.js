@@ -26,11 +26,11 @@
 
 import cssEsc from 'cssesc';
 import FontFamily from 'font-family-papandreou';
-import jsPDF, { GState, ShadingPattern, TilingPattern, jsPDF as jsPDF$1 } from 'jspdf';
+import { jsPDF, GState, ShadingPattern, TilingPattern } from 'jspdf';
 import SvgPath from 'svgpath';
 import { compare } from 'specificity';
 
-/*! *****************************************************************************
+/******************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any
@@ -49,11 +49,13 @@ PERFORMANCE OF THIS SOFTWARE.
 var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf ||
         ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
     return extendStatics(d, b);
 };
 
 function __extends(d, b) {
+    if (typeof b !== "function" && b !== null)
+        throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
@@ -435,6 +437,7 @@ var AttributeState = /** @class */ (function () {
         this.textAnchor = '';
         this.visibility = '';
         this.color = null;
+        this.fillRule = null;
     }
     AttributeState.prototype.clone = function () {
         var clone = new AttributeState();
@@ -461,6 +464,7 @@ var AttributeState = /** @class */ (function () {
         clone.alignmentBaseline = this.alignmentBaseline;
         clone.visibility = this.visibility;
         clone.color = this.color;
+        clone.fillRule = this.fillRule;
         return clone;
     };
     AttributeState.default = function () {
@@ -488,6 +492,7 @@ var AttributeState = /** @class */ (function () {
         attributeState.textAnchor = 'start';
         attributeState.visibility = 'visible';
         attributeState.color = new RGBColor('rgb(0, 0, 0)');
+        attributeState.fillRule = 'nonzero';
         return attributeState;
     };
     return AttributeState;
@@ -913,6 +918,10 @@ function findFirstAvailableFontFamily(attributeState, fontFamilies, context) {
     var availableFonts = context.pdf.getFontList();
     var firstAvailable = '';
     var fontIsAvailable = fontFamilies.some(function (font) {
+        var userFontAliases = context.svg2pdfParameters.userFontAliases;
+        if (userFontAliases && userFontAliases.hasOwnProperty(font)) {
+            font = userFontAliases[font];
+        }
         var availableStyles = availableFonts[font];
         if (availableStyles && availableStyles.indexOf(fontType) >= 0) {
             firstAvailable = font;
@@ -1628,6 +1637,10 @@ function parseAttributes(context, svgNode, node) {
     if (textAnchor) {
         context.attributeState.textAnchor = textAnchor;
     }
+    var fillRule = getAttribute(domNode, context.styleSheets, 'fill-rule');
+    if (fillRule) {
+        context.attributeState.fillRule = fillRule;
+    }
 }
 function applyAttributes(childContext, parentContext, node) {
     var fillOpacity = 1.0, strokeOpacity = 1.0;
@@ -2002,7 +2015,7 @@ var GeometryNode = /** @class */ (function (_super) {
                         _b.label = 3;
                     case 3:
                         fillData = _a;
-                        isNodeFillRuleEvenOdd = getAttribute(this.element, context.styleSheets, 'fill-rule') === 'evenodd';
+                        isNodeFillRuleEvenOdd = context.attributeState.fillRule === 'evenodd';
                         // This is a workaround for symbols that are used multiple times with different
                         // fill/stroke attributes. All paths within symbols are both filled and stroked
                         // and we set the fill/stroke to transparent if the use element has
@@ -2980,7 +2993,7 @@ var ImageNode = /** @class */ (function (_super) {
                         _b.sent();
                         return [2 /*return*/];
                     case 3:
-                        dataUri = "data:image/" + format + ";base64," + btoa(data);
+                        dataUri = "data:image/".concat(format, ";base64,").concat(btoa(data));
                         try {
                             context.pdf.addImage(dataUri, '', // will be ignored anyways if imageUrl is a data url
                             x, y, width, height);
@@ -2988,7 +3001,7 @@ var ImageNode = /** @class */ (function (_super) {
                         catch (e) {
                             typeof console === 'object' &&
                                 console.warn &&
-                                console.warn("Could not load image " + this.imageUrl + ". \n" + e);
+                                console.warn("Could not load image ".concat(this.imageUrl, ". \n").concat(e));
                         }
                         _b.label = 4;
                     case 4: return [2 /*return*/];
@@ -3016,7 +3029,7 @@ var ImageNode = /** @class */ (function (_super) {
                         mimeType = match[2];
                         mimeTypeParts = mimeType.split('/');
                         if (mimeTypeParts[0] !== 'image') {
-                            throw new Error("Unsupported image URL: " + imageUrl);
+                            throw new Error("Unsupported image URL: ".concat(imageUrl));
                         }
                         format = mimeTypeParts[1];
                         data = match[5];
@@ -3048,7 +3061,7 @@ var ImageNode = /** @class */ (function (_super) {
             xhr.responseType = 'arraybuffer';
             xhr.onload = function () {
                 if (xhr.status !== 200) {
-                    throw new Error("Error " + xhr.status + ": Failed to load image '" + imageUrl + "'");
+                    throw new Error("Error ".concat(xhr.status, ": Failed to load image '").concat(imageUrl, "'"));
                 }
                 var bytes = new Uint8Array(xhr.response);
                 var data = '';
@@ -3069,7 +3082,7 @@ var ImageNode = /** @class */ (function (_super) {
             case 'jpeg':
                 return 'image/jpeg';
             default:
-                return "image/" + format;
+                return "image/".concat(format);
         }
     };
     return ImageNode;
@@ -3764,7 +3777,7 @@ var StyleSheets = /** @class */ (function () {
             xhr.responseType = 'text';
             xhr.onload = function () {
                 if (xhr.status !== 200) {
-                    reject(new Error("Error " + xhr.status + ": Failed to load '" + url + "'"));
+                    reject(new Error("Error ".concat(xhr.status, ": Failed to load '").concat(url, "'")));
                 }
                 resolve(xhr.responseText);
             };
@@ -3900,11 +3913,11 @@ var TextMeasure = /** @class */ (function () {
     return TextMeasure;
 }());
 
-function svg2pdf(element, pdf, options) {
-    var _a, _b, _c;
-    if (options === void 0) { options = {}; }
-    return __awaiter(this, void 0, void 0, function () {
+function svg2pdf(element_1, pdf_1) {
+    return __awaiter(this, arguments, void 0, function (element, pdf, options) {
         var x, y, extCss, idMap, refsHandler, styleSheets, viewport, svg2pdfParameters, textMeasure, context, fill, node;
+        var _a, _b, _c;
+        if (options === void 0) { options = {}; }
         return __generator(this, function (_d) {
             switch (_d.label) {
                 case 0:
@@ -3952,7 +3965,7 @@ function svg2pdf(element, pdf, options) {
         });
     });
 }
-jsPDF$1.API.svg = function (element, options) {
+jsPDF.API.svg = function (element, options) {
     if (options === void 0) { options = {}; }
     return svg2pdf(element, this, options);
 };

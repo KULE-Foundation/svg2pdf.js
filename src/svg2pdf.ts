@@ -77,4 +77,5 @@ export interface Svg2PdfOptions {
   width?: number
   height?: number
   loadExternalStyleSheets?: boolean
+  userFontAliases?: { [svgName: string]: string }
 }

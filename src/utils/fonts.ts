@@ -36,6 +36,11 @@ export function findFirstAvailableFontFamily(
   const availableFonts = context.pdf.getFontList()
   let firstAvailable = ''
   const fontIsAvailable = fontFamilies.some(font => {
+    const userFontAliases = context.svg2pdfParameters.userFontAliases
+    if (userFontAliases && userFontAliases.hasOwnProperty(font)) {
+      font = userFontAliases[font]
+    }
+
     const availableStyles = availableFonts[font]
     if (availableStyles && availableStyles.indexOf(fontType) >= 0) {
       firstAvailable = font
